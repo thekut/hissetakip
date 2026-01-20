@@ -49,5 +49,33 @@ class TestStockAppIntegration(unittest.TestCase):
         self.assertIn("expert_comment", result)
         self.assertIn("RSI", result["metrics"])
 
+    def test_3_batch_price_fetch_optimization(self):
+        """Verify batch price fetching works with multiple tickers (testing vectorized optimization)."""
+        tickers = ["AAPL", "MSFT", "GOOG", "AMZN"]
+        prices = get_current_price_batch(tickers)
+
+        self.assertEqual(len(prices), len(tickers), "Should return results for all tickers")
+
+        for ticker in tickers:
+            self.assertIn(ticker, prices)
+            self.assertIn("price", prices[ticker])
+            self.assertIn("change_pct", prices[ticker])
+            # Prices should be positive numbers (unless data is totally missing/market crashed to 0)
+            # We assume major tech stocks are > 0
+            self.assertGreater(prices[ticker]['price'], 0, f"Price for {ticker} should be > 0")
+
+        # Test with an invalid ticker mixed in
+        mixed_tickers = ["AAPL", "INVALID_TICKER_XYZ"]
+        mixed_prices = get_current_price_batch(mixed_tickers)
+
+        self.assertIn("AAPL", mixed_prices)
+        self.assertGreater(mixed_prices["AAPL"]['price'], 0)
+
+        self.assertIn("INVALID_TICKER_XYZ", mixed_prices)
+        # Should be 0.0 or NaN for invalid (depending on yfinance return behavior)
+        # Original implementation returned NaN because yfinance returns NaNs for failed tickers in the dataframe.
+        price = mixed_prices["INVALID_TICKER_XYZ"]['price']
+        self.assertTrue(pd.isna(price) or price == 0.0, f"Price should be NaN or 0.0, got {price}")
+
 if __name__ == '__main__':
     unittest.main()
