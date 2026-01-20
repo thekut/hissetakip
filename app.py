@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import time
 
-from utils.data_manager import load_watchlist, save_watchlist, fetch_stock_history, get_current_price_batch, fetch_fundamentals_safe
+from utils.data_manager import load_watchlist, save_watchlist, fetch_stock_history, fetch_fundamentals_safe, extract_prices_from_history
 from utils.analysis import analyze_stock
 
 # Page Config
@@ -17,8 +17,8 @@ def load_data(watchlist_tickers):
     Fetches data for all stocks in the watchlist.
     Returns: prices_dict, history_df_multiindex
     """
-    prices = get_current_price_batch(watchlist_tickers)
     history = fetch_stock_history(watchlist_tickers)
+    prices = extract_prices_from_history(history, watchlist_tickers)
     return prices, history
 
 @st.cache_data(ttl=3600) # Cache fundamentals longer

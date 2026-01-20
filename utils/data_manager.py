@@ -82,3 +82,43 @@ def get_current_price_batch(tickers):
             results[ticker] = {"price": 0.0, "change_pct": 0.0}
 
     return results
+
+def extract_prices_from_history(history, tickers):
+    """
+    Extracts current price and daily change from the history dataframe.
+    """
+    results = {}
+    if history.empty:
+        return {ticker: {"price": 0.0, "change_pct": 0.0} for ticker in tickers}
+
+    for ticker in tickers:
+        try:
+            if isinstance(history.columns, pd.MultiIndex):
+                if ticker in history.columns.get_level_values(0):
+                    df = history[ticker]
+                else:
+                    results[ticker] = {"price": 0.0, "change_pct": 0.0}
+                    continue
+            else:
+                df = history
+
+            if df.empty or 'Close' not in df.columns:
+                results[ticker] = {"price": 0.0, "change_pct": 0.0}
+                continue
+
+            last_close = df['Close'].iloc[-1]
+            prev_close = df['Close'].iloc[-2] if len(df) > 1 else last_close
+
+            change_pct = 0.0
+            if prev_close != 0:
+                change_pct = ((last_close - prev_close) / prev_close) * 100
+
+            results[ticker] = {
+                "price": last_close,
+                "change_pct": change_pct,
+            }
+        except Exception as e:
+            print(f"Error extracting price for {ticker}: {e}")
+            results[ticker] = {"price": 0.0, "change_pct": 0.0}
+
+    return results
