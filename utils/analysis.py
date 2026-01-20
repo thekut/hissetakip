@@ -15,16 +15,16 @@ def calculate_technicals(df_history):
 
     # RSI
     rsi_indicator = RSIIndicator(close=close, window=14)
-    current_rsi = rsi_indicator.rsi().iloc[-1]
+    rsi_series = rsi_indicator.rsi()
 
     # SMA 50 and 200
-    sma50 = SMAIndicator(close=close, window=50).sma_indicator().iloc[-1]
-    sma200 = SMAIndicator(close=close, window=200).sma_indicator().iloc[-1]
+    sma50_series = SMAIndicator(close=close, window=50).sma_indicator()
+    sma200_series = SMAIndicator(close=close, window=200).sma_indicator()
 
     return {
-        "RSI": current_rsi,
-        "SMA50": sma50,
-        "SMA200": sma200
+        "RSI": rsi_series,
+        "SMA50": sma50_series,
+        "SMA200": sma200_series
     }
 
 def analyze_stock(ticker, current_price, history_df, fundamentals):
@@ -56,8 +56,10 @@ def analyze_stock(ticker, current_price, history_df, fundamentals):
             analysis_text.append("Price is testing the 52-Week Low support.")
 
     # 2. Technical Analysis
-    rsi = technicals.get("RSI")
-    if rsi:
+    rsi_series = technicals.get("RSI")
+    rsi = rsi_series.iloc[-1] if rsi_series is not None and not rsi_series.empty else None
+
+    if rsi is not None:
         if rsi > 70:
             analysis_text.append(f"RSI is Overbought ({rsi:.1f}). Potential pullback.")
         elif rsi < 30:
@@ -65,19 +67,23 @@ def analyze_stock(ticker, current_price, history_df, fundamentals):
         else:
             analysis_text.append(f"RSI is Neutral ({rsi:.1f}).")
 
-    sma50 = technicals.get("SMA50")
-    sma200 = technicals.get("SMA200")
+    sma50_series = technicals.get("SMA50")
+    sma200_series = technicals.get("SMA200")
 
-    if sma50 and sma200:
+    sma50 = sma50_series.iloc[-1] if sma50_series is not None and not sma50_series.empty else None
+    sma200 = sma200_series.iloc[-1] if sma200_series is not None and not sma200_series.empty else None
+
+    if sma50 is not None and sma200 is not None:
         if sma50 > sma200:
             analysis_text.append("Trend: Bullish (50 SMA > 200 SMA).")
         else:
             analysis_text.append("Trend: Bearish (50 SMA < 200 SMA).")
 
-    if sma200 and current_price > sma200:
-        analysis_text.append("Price is above 200-day moving average (Long-term Uptrend).")
-    elif sma200:
-        analysis_text.append("Price is below 200-day moving average (Long-term Downtrend).")
+    if sma200 is not None:
+        if current_price > sma200:
+            analysis_text.append("Price is above 200-day moving average (Long-term Uptrend).")
+        else:
+            analysis_text.append("Price is below 200-day moving average (Long-term Downtrend).")
 
     # 3. Recommendation (Hybrid of Technicals + Analyst)
     analyst_rec = fundamentals.get("recommendationKey", "").upper().replace("_", " ")
