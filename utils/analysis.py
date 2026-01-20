@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import google.generativeai as genai
 from ta.momentum import RSIIndicator
 from ta.trend import SMAIndicator
 
@@ -92,3 +93,32 @@ def analyze_stock(ticker, current_price, history_df, fundamentals):
         "expert_comment": summary,
         "dist_to_ath": dist_to_ath_pct
     }
+
+def ask_gemini_analysis(df_summary, api_key):
+    """
+    Uses Google Gemini to analyze the portfolio summary dataframe.
+    """
+    if not api_key:
+        return "⚠️ AI Analysis requires a valid Gemini API Key (Enter in Sidebar)."
+
+    try:
+        genai.configure(api_key=api_key)
+
+        prompt = f"""
+        Act as a professional stock market analyst. Review the following portfolio data:
+        {df_summary.to_string()}
+
+        Please provide:
+        1. **Risk Assessment**: Which stocks are Overbought (RSI > 70) or near resistance?
+        2. **Opportunities**: Which stocks are Oversold (RSI < 30) or showing strong momentum?
+        3. **Sector Strategy**: Brief advice based on the sectors present.
+        4. **Actionable Summary**: 3 bullet points for the user.
+
+        Keep the response professional, concise, and formatted in Markdown.
+        """
+
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"❌ Error contacting Gemini: {str(e)}"
