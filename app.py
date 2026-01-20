@@ -85,17 +85,31 @@ for ticker in tickers:
         ticker_hist = history
 
     # Analyze (Lightweight analysis for table)
-    # We fetch fundamentals lazily or use cached?
-    # For the table, we might need some fundamentals (ATH).
-    # To speed up, we might skip full analysis for the table row unless we cached it.
-    # Let's just do a quick calc based on history for ATH.
+    # Strategy: Use cached fundamentals if available (for ATH/52W), else fallback to history (approx).
+    cached_fund = stock_info.get("fundamentals", {})
 
-    high_52 = ticker_hist['High'].max() if not ticker_hist.empty else 0
-    low_52 = ticker_hist['Low'].min() if not ticker_hist.empty else 0
+    # 1. 52-Week High & Low
+    if cached_fund.get("fiftyTwoWeekHigh"):
+        high_52 = cached_fund.get("fiftyTwoWeekHigh")
+    else:
+        # Fallback to 1-year history max
+        high_52 = ticker_hist['High'].max() if not ticker_hist.empty else 0
+
+    if cached_fund.get("fiftyTwoWeekLow"):
+        low_52 = cached_fund.get("fiftyTwoWeekLow")
+    else:
+        low_52 = ticker_hist['Low'].min() if not ticker_hist.empty else 0
+
+    # 2. ATH (All-Time High)
+    if cached_fund.get("allTimeHigh"):
+        ath_val = cached_fund.get("allTimeHigh")
+    else:
+        # Fallback to high_52 (best we have without full history)
+        ath_val = high_52
 
     dist_ath = 0
-    if high_52 > 0 and current_price > 0:
-        dist_ath = ((high_52 - current_price) / high_52) * 100
+    if ath_val > 0 and current_price > 0:
+        dist_ath = ((ath_val - current_price) / ath_val) * 100
 
     # Check Alerts
     if dist_ath < 2.0 and current_price > 0:
@@ -163,6 +177,11 @@ if selected_ticker:
     # Fetch Deep Data
     with st.spinner(f"Analyzing {selected_ticker}..."):
         fund = load_fundamental(selected_ticker)
+
+        # Update Cache in Watchlist (Lazy Loading Strategy)
+        if selected_ticker in watchlist:
+            watchlist[selected_ticker]["fundamentals"] = fund
+            save_watchlist(watchlist)
 
         # Get history again (uncached or cached)
         if isinstance(history.columns, pd.MultiIndex):

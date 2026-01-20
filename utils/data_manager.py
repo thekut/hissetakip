@@ -43,6 +43,8 @@ def fetch_fundamentals_safe(ticker):
             "recommendationKey": info.get("recommendationKey"), # Analyst Consensus
             "fiftyTwoWeekHigh": info.get("fiftyTwoWeekHigh"),
             "fiftyTwoWeekLow": info.get("fiftyTwoWeekLow"),
+            "allTimeHigh": info.get("allTimeHigh"),
+            "allTimeLow": info.get("allTimeLow"),
             "currentPrice": info.get("currentPrice") or info.get("regularMarketPrice") # Fallback
         }
     except Exception as e:
