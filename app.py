@@ -179,11 +179,14 @@ if selected_ticker:
 
     with col1:
         st.subheader("Fundamental Data")
+        rsi_series = analysis['metrics'].get('RSI')
+        rsi_val = rsi_series.iloc[-1] if rsi_series is not None and not rsi_series.empty else 0
+
         metrics = {
             "Market Cap": fund.get("marketCap", "N/A"),
             "P/E Ratio": fund.get("trailingPE", "N/A"),
             "Analyst Rec": fund.get("recommendationKey", "N/A").upper().replace("_", " "),
-            "RSI (14)": f"{analysis['metrics'].get('RSI', 0):.1f}"
+            "RSI (14)": f"{rsi_val:.1f}"
         }
         st.json(metrics)
 
@@ -229,23 +232,14 @@ if selected_ticker:
             ), row=1, col=1)
 
             # SMA
-            sma50 = analysis['metrics'].get('SMA50')
-            # (Note: SMA in analysis.py is just the last value. To plot, we need series.
-            # I'll re-calculate series here for plotting or update analysis to return series.
-            # For speed, I'll just use the built-in ta logic or rolling mean here)
-            sma_50_series = ticker_hist['Close'].rolling(window=50).mean()
-            sma_200_series = ticker_hist['Close'].rolling(window=200).mean()
+            sma_50_series = analysis['metrics'].get('SMA50')
+            sma_200_series = analysis['metrics'].get('SMA200')
 
             fig.add_trace(go.Scatter(x=ticker_hist.index, y=sma_50_series, name="SMA 50", line=dict(color='orange')), row=1, col=1)
             fig.add_trace(go.Scatter(x=ticker_hist.index, y=sma_200_series, name="SMA 200", line=dict(color='blue')), row=1, col=1)
 
             # RSI
-            # Calculate RSI Series
-            delta = ticker_hist['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            rsi_series = 100 - (100 / (1 + rs))
+            rsi_series = analysis['metrics'].get('RSI')
 
             fig.add_trace(go.Scatter(x=ticker_hist.index, y=rsi_series, name="RSI", line=dict(color='purple')), row=2, col=1)
             fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
