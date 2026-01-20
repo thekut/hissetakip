@@ -3,9 +3,11 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import time
+import os
 
 from utils.data_manager import load_watchlist, save_watchlist, fetch_stock_history, get_current_price_batch, fetch_fundamentals_safe
 from utils.analysis import analyze_stock
+from utils.ai_assistant import get_ai_response
 
 # Page Config
 st.set_page_config(page_title="Jules Stock Tracker", layout="wide", page_icon="📈")
@@ -261,6 +263,26 @@ st.divider()
 st.caption("Jules AI Financial Assistant - Market Data Provided by Yahoo Finance. Alerts are based on end-of-day data approximations.")
 
 with st.expander("💬 Ask Jules (AI Chat)"):
+    # API Key Handling
+    api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        api_key = st.text_input("Enter Gemini API Key", type="password")
+
     user_q = st.text_input("Ask a question about your portfolio...")
-    if user_q:
-        st.write("Jules: That's a great question! Based on my current programming, I recommend focusing on the technical indicators shown above. (Integration with Gemini API would go here).")
+
+    if user_q and api_key:
+        with st.spinner("Jules is thinking..."):
+            # Construct Context
+            context_data = {
+                "portfolio_summary": table_data,
+                "current_view_ticker": selected_ticker
+            }
+
+            # Add deep dive analysis if available for the selected ticker
+            if selected_ticker and 'analysis' in locals():
+                 context_data["detailed_analysis"] = analysis
+
+            response = get_ai_response(user_q, context_data, api_key)
+            st.markdown(f"**Jules:** {response}")
+    elif user_q and not api_key:
+        st.error("Please provide a Gemini API Key to chat with Jules.")
