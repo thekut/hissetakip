@@ -77,7 +77,10 @@ def fetch_fundamentals_safe(ticker):
             "fiftyTwoWeekHigh": info.get("fiftyTwoWeekHigh"),
             "fiftyTwoWeekLow": info.get("fiftyTwoWeekLow"),
             "currentPrice": info.get("currentPrice") or info.get("regularMarketPrice"),
-            "sector": info.get("sector")
+            "sector": info.get("sector"),
+            "beta": info.get("beta"),
+            "dividendYield": info.get("dividendYield"),
+            "profitMargins": info.get("profitMargins")
         }
     except Exception as e:
         print(f"Error fetching fundamentals for {ticker}: {e}")
