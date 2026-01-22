@@ -13,14 +13,13 @@ def calculate_technicals(df_history):
     if df_history is None or df_history.empty or len(df_history) < 20:
         return None
 
-    # Handle MultiIndex if necessary (though usually passed as single level here)
+    # Handle MultiIndex if necessary
     if isinstance(df_history, pd.DataFrame):
         try:
             close = df_history['Close']
             high = df_history['High']
             low = df_history['Low']
         except KeyError:
-            # Fallback if somehow just a Series or different structure
              return None
     else:
         return None
@@ -56,46 +55,46 @@ def calculate_technicals(df_history):
     # RSI Logic
     if rsi_val < 30:
         score += 2
-        reasons.append("RSI Oversold (<30)")
+        reasons.append("RSI Aşırı Satım (<30) - Tepki Yükselişi Beklentisi")
     elif rsi_val > 70:
         score -= 2
-        reasons.append("RSI Overbought (>70)")
+        reasons.append("RSI Aşırı Alım (>70) - Düzeltme Riski")
     else:
-        reasons.append(f"RSI Neutral ({rsi_val:.1f})")
+        reasons.append(f"RSI Nötr ({rsi_val:.1f})")
 
     # SMA Trend Logic
     if not np.isnan(sma200):
         if current_price > sma200:
             score += 1
-            reasons.append("Price > SMA200 (Long-term Bullish)")
+            reasons.append("Fiyat > SMA200 (Uzun Vadeli Yükseliş Trendi)")
         else:
             score -= 1
-            reasons.append("Price < SMA200 (Long-term Bearish)")
+            reasons.append("Fiyat < SMA200 (Uzun Vadeli Düşüş Trendi)")
 
     # SMA Crossover
     if not np.isnan(sma50) and not np.isnan(sma200):
         if sma50 > sma200:
             score += 1
-            reasons.append("Golden Cross (SMA50 > SMA200)")
+            reasons.append("Golden Cross (SMA50 > SMA200) - Güçlü Al Sinyali")
         elif sma50 < sma200:
             score -= 1
-            reasons.append("Death Cross (SMA50 < SMA200)")
+            reasons.append("Death Cross (SMA50 < SMA200) - Güçlü Sat Sinyali")
 
     # Bollinger Bands
     if current_price <= bb_low * 1.01:
         score += 1
-        reasons.append("Near Lower Bollinger Band")
+        reasons.append("Bollinger Alt Bandına Yakın (Alım Fırsatı Olabilir)")
     elif current_price >= bb_high * 0.99:
         score -= 1
-        reasons.append("Near Upper Bollinger Band")
+        reasons.append("Bollinger Üst Bandına Yakın (Direnç Bölgesi)")
 
     # MACD
     if macd_line > macd_signal:
         score += 1
-        reasons.append("MACD Bullish Crossover")
+        reasons.append("MACD Al Sinyali (Pozitif Kesişim)")
     else:
         score -= 1
-        reasons.append("MACD Bearish Crossover")
+        reasons.append("MACD Sat Sinyali (Negatif Kesişim)")
 
     # Signal Text
     if score >= 3:
@@ -110,14 +109,6 @@ def calculate_technicals(df_history):
         signal_txt = "NÖTR ⚪"
 
     # --- PIVOTS & LEVELS ---
-    # Standard Pivot Points based on previous candle (Daily)
-    # If we are strictly using daily data, iloc[-1] is today (incomplete) or yesterday?
-    # Usually for pivots we use the PREVIOUS completed day.
-    # Let's assume the passed dataframe includes the latest data.
-    # If it's live data, -1 might be "current". -2 is "yesterday".
-    # For safety/consistency, let's use the last available row for Pivot calculation
-    # but strictly speaking it should be yesterday's High/Low/Close for Today's pivots.
-
     if len(high) > 1:
         prev_high = high.iloc[-2]
         prev_low = low.iloc[-2]
@@ -127,10 +118,31 @@ def calculate_technicals(df_history):
         r1 = (2 * pivot) - prev_low
         s1 = (2 * pivot) - prev_high
     else:
-        # Fallback to current if only 1 row (unlikely)
         pivot = (high.iloc[-1] + low.iloc[-1] + close.iloc[-1]) / 3
         r1 = (2 * pivot) - low.iloc[-1]
         s1 = (2 * pivot) - high.iloc[-1]
+
+    # --- STRATEGY PERFORMANCE (Backtest Simulation) ---
+    # Simple Strategy: Buy if Price > SMA50, Sell if Price < SMA50
+    # This acts as the "Most Profitable Algorithm" proxy requested
+    try:
+        df_strat = pd.DataFrame(index=close.index)
+        df_strat['Price'] = close
+        df_strat['SMA50'] = SMAIndicator(close=close, window=50).sma_indicator()
+        df_strat['Signal'] = np.where(df_strat['Price'] > df_strat['SMA50'], 1, 0)
+        df_strat['Returns'] = df_strat['Price'].pct_change()
+        df_strat['Strat_Returns'] = df_strat['Signal'].shift(1) * df_strat['Returns']
+
+        cum_strat_return = (1 + df_strat['Strat_Returns']).cumprod().iloc[-1] - 1
+        cum_buy_hold = (1 + df_strat['Returns']).cumprod().iloc[-1] - 1
+
+        strat_perf = {
+            "Algo_Return": cum_strat_return * 100,
+            "BuyHold_Return": cum_buy_hold * 100,
+            "Algo_Name": "SMA 50 Trend Takipçisi"
+        }
+    except:
+        strat_perf = {"Algo_Return": 0, "BuyHold_Return": 0, "Algo_Name": "Veri Yetersiz"}
 
     return {
         "Fiyat": current_price,
@@ -146,7 +158,8 @@ def calculate_technicals(df_history):
         "Direnç 1": r1,
         "Sinyal": signal_txt,
         "Score": score,
-        "Reasons": reasons
+        "Reasons": reasons,
+        "Strategy": strat_perf
     }
 
 def analyze_stock(ticker, current_price, history_df, fundamentals):
@@ -174,12 +187,26 @@ def analyze_stock(ticker, current_price, history_df, fundamentals):
         if dist_to_atl_pct < 2.5:
             alerts.append(f"⚠️ ATL Alarm: Dibe çok yakın (%{dist_to_atl_pct:.1f})")
 
+    # Analyst Consensus Interpretation
+    rec_key = fundamentals.get("recommendationKey", "none").lower()
+    rec_score = 0
+    if "buy" in rec_key: rec_score = 1
+    elif "sell" in rec_key: rec_score = -1
+
+    # Basic Algo Comment
+    algo_comment = "Veri yok."
+    if tech.get("Strategy"):
+        s = tech["Strategy"]
+        diff = s["Algo_Return"] - s["BuyHold_Return"]
+        algo_comment = f"{s['Algo_Name']} stratejisi son 1 yılda %{s['Algo_Return']:.1f} getiri sağladı. (Buy&Hold farkı: %{diff:+.1f})"
+
     return {
         "metrics": tech,
         "alerts": alerts,
         "dist_to_ath": dist_to_ath_pct,
         "reasons": tech["Reasons"],
-        "expert_comment": " ".join(tech["Reasons"])
+        "expert_comment": " ".join(tech["Reasons"]),
+        "algo_comment": algo_comment
     }
 
 def ask_gemini_analysis(df_summary, api_key):
