@@ -1,272 +1,122 @@
 {
+    "NVDA": {
+        "name": "NVIDIA Corp.",
+        "sector": "Yarı İletken",
+        "transactions": []
+    },
     "AAPL": {
         "name": "Apple Inc.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "BAC": {
-        "name": "Bank of America Corp",
-        "sector": "Financial Services",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "TSLA": {
-        "name": "Tesla Inc.",
-        "sector": "Consumer Cyclical",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "NVDA": {
-        "name": "NVIDIA Corp",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "PLUG": {
-        "name": "Plug Power Inc.",
-        "sector": "Industrials",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "LCID": {
-        "name": "Lucid Group Inc.",
-        "sector": "Consumer Cyclical",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "NIO": {
-        "name": "NIO Inc.",
-        "sector": "Consumer Cyclical",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "RIVN": {
-        "name": "Rivian Automotive Inc.",
-        "sector": "Consumer Cyclical",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "F": {
-        "name": "Ford Motor Co.",
-        "sector": "Consumer Cyclical",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "JOBY": {
-        "name": "Joby Aviation Inc.",
-        "sector": "Industrials",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "ACHR": {
-        "name": "Archer Aviation Inc.",
-        "sector": "Industrials",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "SMCI": {
-        "name": "Super Micro Computer Inc.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "SOUN": {
-        "name": "SoundHound AI Inc",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "U": {
-        "name": "Unity Software Inc.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "PATH": {
-        "name": "UiPath Inc.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "RKLB": {
-        "name": "Rocket Lab Corporation",
-        "sector": "Industrials",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "CTRA": {
-        "name": "Coterra Energy Inc.",
-        "sector": "Energy",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "NUVL": {
-        "name": "Nuvalent Inc",
-        "sector": "Healthcare",
-        "buy_price": 0.0,
-        "quantity": 0
+        "sector": "Teknoloji",
+        "transactions": []
     },
     "GOOGL": {
-        "name": "Alphabet Inc. Class A",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "ROL": {
-        "name": "Rollins Inc.",
-        "sector": "Industrials",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "ZIM": {
-        "name": "ZIM Integrated Shipping Services",
-        "sector": "Industrials",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "IONS": {
-        "name": "Ionis Pharmaceuticals Inc.",
-        "sector": "Healthcare",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "T": {
-        "name": "AT&T Inc.",
-        "sector": "Communication Services",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "PLTR": {
-        "name": "Palantir Technologies Inc.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "PYPL": {
-        "name": "PayPal Holdings Inc.",
-        "sector": "Financial Services",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "INTC": {
-        "name": "Intel Corp.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "MMM": {
-        "name": "3M Co.",
-        "sector": "Industrials",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "WBD": {
-        "name": "Warner Bros. Discovery Inc",
-        "sector": "Communication Services",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "BABA": {
-        "name": "Alibaba Group Holding Ltd",
-        "sector": "Consumer Cyclical",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "IBM": {
-        "name": "IBM Corp.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "TROW": {
-        "name": "T Rowe Price Group Inc.",
-        "sector": "Financial Services",
-        "buy_price": 0.0,
-        "quantity": 0
-    },
-    "ORCL": {
-        "name": "Oracle Corp.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
+        "name": "Alphabet Inc.",
+        "sector": "İletişim",
+        "transactions": []
     },
     "AMZN": {
         "name": "Amazon.com Inc.",
-        "sector": "Consumer Cyclical",
-        "buy_price": 0.0,
-        "quantity": 0
+        "sector": "E-Ticaret",
+        "transactions": []
     },
-    "OXY": {
-        "name": "Occidental Petroleum Corp.",
-        "sector": "Energy",
-        "buy_price": 0.0,
-        "quantity": 0
+    "MSFT": {
+        "name": "Microsoft Corp.",
+        "sector": "Yazılım",
+        "transactions": []
     },
-    "AFRM": {
-        "name": "Affirm Holdings Inc",
-        "sector": "Financial Services",
-        "buy_price": 0.0,
-        "quantity": 0
+    "TSLA": {
+        "name": "Tesla Inc.",
+        "sector": "Otomotiv/AI",
+        "transactions": []
     },
-    "KALU": {
-        "name": "Kaiser Aluminum Corp.",
-        "sector": "Basic Materials",
-        "buy_price": 0.0,
-        "quantity": 0
+    "PLTR": {
+        "name": "Palantir Technologies",
+        "sector": "Yazılım/AI",
+        "transactions": []
     },
-    "NOW": {
-        "name": "ServiceNow Inc.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
+    "RKLB": {
+        "name": "Rocket Lab USA",
+        "sector": "Havacılık",
+        "transactions": []
+    },
+    "SOFI": {
+        "name": "SoFi Technologies",
+        "sector": "Fintech",
+        "transactions": []
+    },
+    "RDDT": {
+        "name": "Reddit Inc.",
+        "sector": "İletişim",
+        "transactions": []
+    },
+    "JOBY": {
+        "name": "Joby Aviation",
+        "sector": "eVTOL",
+        "transactions": []
+    },
+    "ACHR": {
+        "name": "Archer Aviation",
+        "sector": "eVTOL",
+        "transactions": []
+    },
+    "OUST": {
+        "name": "Ouster Inc.",
+        "sector": "Lidar Sensör",
+        "transactions": []
+    },
+    "S": {
+        "name": "SentinelOne",
+        "sector": "Siber Güvenlik",
+        "transactions": []
+    },
+    "IONQ": {
+        "name": "IonQ Inc",
+        "sector": "Kuantum/Enerji",
+        "transactions": []
     },
     "GEHC": {
-        "name": "GE Healthcare Technologies Inc.",
-        "sector": "Healthcare",
-        "buy_price": 0.0,
-        "quantity": 0
+        "name": "GE HealthCare",
+        "sector": "Sağlık Tek.",
+        "transactions": []
     },
-    "FSLY": {
-        "name": "Fastly Inc",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
+    "OXY": {
+        "name": "Occidental Petroleum",
+        "sector": "Enerji",
+        "transactions": []
     },
-    "AAL": {
-        "name": "American Airlines Group Inc.",
-        "sector": "Industrials",
-        "buy_price": 0.0,
-        "quantity": 0
+    "RIO": {
+        "name": "Rio Tinto",
+        "sector": "Madencilik",
+        "transactions": []
     },
-    "SATS": {
-        "name": "EchoStar Corp.",
-        "sector": "Communication Services",
-        "buy_price": 0.0,
-        "quantity": 0
+    "CLF": {
+        "name": "Cleveland-Cliffs",
+        "sector": "Çelik",
+        "transactions": []
     },
-    "WULF": {
-        "name": "TeraWulf Inc.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
+    "QQQ": {
+        "name": "Invesco QQQ",
+        "sector": "ETF - Teknoloji",
+        "transactions": []
     },
-    "SIGA": {
-        "name": "SIGA Technologies Inc.",
-        "sector": "Healthcare",
-        "buy_price": 0.0,
-        "quantity": 0
+    "SPY": {
+        "name": "SPDR S&P 500",
+        "sector": "ETF - Genel",
+        "transactions": []
     },
-    "FIVN": {
-        "name": "Five9 Inc.",
-        "sector": "Technology",
-        "buy_price": 0.0,
-        "quantity": 0
+    "SOXL": {
+        "name": "Direxion Daily Semi Bull 3X",
+        "sector": "ETF - Yarı İletken",
+        "transactions": []
     },
-    "SOLV": {
-        "name": "Solventum Corp.",
-        "sector": "Healthcare",
-        "buy_price": 0.0,
-        "quantity": 0
+    "TLT": {
+        "name": "iShares 20+ Year Treasury",
+        "sector": "ETF - Tahvil",
+        "transactions": []
+    },
+    "EWZ": {
+        "name": "iShares MSCI Brazil",
+        "sector": "ETF - Brezilya",
+        "transactions": []
     }
 }
