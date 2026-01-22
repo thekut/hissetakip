@@ -57,10 +57,51 @@ def get_current_price_batch(tickers):
     data = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True, threads=True)
 
     results = {}
+
+    # Vectorized implementation for MultiIndex (multiple tickers)
+    # This avoids looping through tickers and creating Series for each, which is slow.
+    vectorized_success = False
+    if isinstance(data.columns, pd.MultiIndex) and not data.empty:
+        try:
+            if 'Close' in data.columns.get_level_values('Price'):
+                close_df = data.xs('Close', level='Price', axis=1)
+
+                if not close_df.empty:
+                    last_closes = close_df.iloc[-1]
+                    prev_closes = close_df.iloc[-2] if len(close_df) > 1 else last_closes
+
+                    changes_pct = ((last_closes - prev_closes) / prev_closes) * 100
+
+                    last_closes_dict = last_closes.to_dict()
+                    changes_pct_dict = changes_pct.to_dict()
+
+                    for ticker in tickers:
+                        if ticker in last_closes_dict:
+                            results[ticker] = {
+                                "price": last_closes_dict[ticker],
+                                "change_pct": changes_pct_dict[ticker]
+                            }
+                        else:
+                            # Ticker requested but not in data (e.g. invalid ticker)
+                            results[ticker] = {"price": 0.0, "change_pct": 0.0}
+                    vectorized_success = True
+        except Exception as e:
+            print(f"Vectorized batch processing failed, falling back to loop: {e}")
+            results = {}
+
+    if vectorized_success:
+        return results
+
+    # Fallback to original loop implementation
     for ticker in tickers:
         try:
             if isinstance(data.columns, pd.MultiIndex):
-                df = data[ticker]
+                # Check if ticker exists in columns level 0 before accessing
+                if ticker in data.columns.get_level_values(0):
+                    df = data[ticker]
+                else:
+                    # Ticker not in data, raise KeyError to trigger exception handler
+                    raise KeyError(f"Ticker {ticker} not found in data")
             else:
                 df = data
 
