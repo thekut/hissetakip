@@ -1,418 +1,367 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from datetime import datetime, timedelta
-import time
-
-# Custom Modules
-from utils.data_manager import (
-    load_watchlist, save_watchlist, fetch_stock_history,
-    fetch_fundamentals_safe, search_symbol_local, initialize_stock_entry, resolve_ticker
-)
-from utils.analysis import analyze_stock, ask_gemini_analysis
+from datetime import datetime
+import json
+import os
+import google.generativeai as genai
+from ta.momentum import RSIIndicator
+from ta.trend import SMAIndicator, MACD
+from ta.volatility import BollingerBands
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Finansal Hafıza Pro", layout="wide", page_icon="🏦")
 
-# --- SESSION STATE & DATA LOADING ---
+# --- DATA MANAGEMENT MODULE (Embedded) ---
+DATA_FILE = "data/stocks.json"
+
+# Master list for name resolution
+KNOWN_STOCKS = {
+    "NVDA": "NVIDIA Corp.", "AAPL": "Apple Inc.", "GOOGL": "Alphabet Inc.",
+    "AMZN": "Amazon.com Inc.", "MSFT": "Microsoft Corp.", "TSLA": "Tesla Inc.",
+    "PLTR": "Palantir Technologies", "RKLB": "Rocket Lab USA", "SOFI": "SoFi Technologies",
+    "RDDT": "Reddit Inc.", "JOBY": "Joby Aviation", "ACHR": "Archer Aviation",
+    "OUST": "Ouster Inc.", "S": "SentinelOne", "IONQ": "IonQ Inc",
+    "GEHC": "GE HealthCare", "OXY": "Occidental Petroleum", "RIO": "Rio Tinto",
+    "CLF": "Cleveland-Cliffs", "QQQ": "Invesco QQQ", "SPY": "SPDR S&P 500",
+    "SOXL": "Direxion Daily Semi Bull 3X", "TLT": "iShares 20+ Year Treasury",
+    "EWZ": "iShares MSCI Brazil"
+}
+
+def load_watchlist():
+    if not os.path.exists(DATA_FILE): return {}
+    with open(DATA_FILE, "r") as f: return json.load(f)
+
+def save_watchlist(data):
+    with open(DATA_FILE, "w") as f: json.dump(data, f, indent=4)
+
+def resolve_ticker(query):
+    query = query.strip()
+    q_upper = query.upper()
+    if q_upper in KNOWN_STOCKS: return q_upper
+    for k, v in KNOWN_STOCKS.items():
+        if v.upper().startswith(q_upper): return k
+    for k, v in KNOWN_STOCKS.items():
+        if q_upper in v.upper(): return k
+    return q_upper
+
+def initialize_stock_entry(ticker, sector="Diğer", name=None):
+    if not name:
+        if ticker in KNOWN_STOCKS: name = KNOWN_STOCKS[ticker]
+        else:
+            try: name = yf.Ticker(ticker).info.get('longName', ticker)
+            except: name = ticker
+    return {"name": name, "sector": sector, "transactions": []}
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_stock_history_cached(tickers):
+    if not tickers: return pd.DataFrame()
+    try:
+        # threads=False improves stability on Streamlit Cloud
+        data = yf.download(tickers, period="1y", group_by='ticker', auto_adjust=True, threads=False)
+        return data
+    except: return pd.DataFrame()
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_fundamentals_cached(ticker):
+    try:
+        t = yf.Ticker(ticker)
+        info = t.info
+        return {
+            "longName": info.get("longName") or info.get("shortName") or ticker,
+            "marketCap": info.get("marketCap"),
+            "trailingPE": info.get("trailingPE"),
+            "recommendationKey": info.get("recommendationKey"),
+            "fiftyTwoWeekHigh": info.get("fiftyTwoWeekHigh"),
+            "fiftyTwoWeekLow": info.get("fiftyTwoWeekLow"),
+            "currentPrice": info.get("currentPrice") or info.get("regularMarketPrice"),
+            "sector": info.get("sector"),
+            "beta": info.get("beta"),
+            "dividendYield": info.get("dividendYield"),
+            "profitMargins": info.get("profitMargins")
+        }
+    except: return {}
+
+# --- ANALYSIS MODULE (Embedded) ---
+def calculate_technicals(df_history):
+    if df_history is None or df_history.empty or len(df_history) < 20: return None
+
+    # Handle MultiIndex
+    if isinstance(df_history, pd.DataFrame):
+        try: close = df_history['Close']
+        except KeyError: return None
+    else: return None
+
+    close = close.ffill()
+    current_price = close.iloc[-1]
+
+    # Indicators
+    rsi_val = RSIIndicator(close=close, window=14).rsi().iloc[-1]
+    sma50 = SMAIndicator(close=close, window=50).sma_indicator().iloc[-1]
+    sma200 = SMAIndicator(close=close, window=200).sma_indicator().iloc[-1]
+    bb = BollingerBands(close=close, window=20, window_dev=2)
+    bb_high = bb.bollinger_hband().iloc[-1]
+    bb_low = bb.bollinger_lband().iloc[-1]
+    macd = MACD(close=close)
+    macd_line = macd.macd().iloc[-1]
+    macd_sig = macd.macd_signal().iloc[-1]
+
+    # Scoring
+    score = 0
+    reasons = []
+
+    if rsi_val < 30: score += 2; reasons.append("RSI Aşırı Satım (<30)")
+    elif rsi_val > 70: score -= 2; reasons.append("RSI Aşırı Alım (>70)")
+    else: reasons.append(f"RSI Nötr ({rsi_val:.1f})")
+
+    if not np.isnan(sma200):
+        if current_price > sma200: score += 1; reasons.append("Fiyat > SMA200 (Boğa Trendi)")
+        else: score -= 1; reasons.append("Fiyat < SMA200 (Ayı Trendi)")
+
+    if not np.isnan(sma50) and not np.isnan(sma200):
+        if sma50 > sma200: score += 1; reasons.append("Golden Cross (SMA50 > SMA200)")
+        elif sma50 < sma200: score -= 1; reasons.append("Death Cross (SMA50 < SMA200)")
+
+    if current_price <= bb_low * 1.01: score += 1; reasons.append("Bollinger Alt Bant (Alım Bölgesi)")
+    if macd_line > macd_sig: score += 1; reasons.append("MACD Al Sinyali")
+
+    # Signal Text
+    if score >= 3: signal_txt = "GÜÇLÜ AL 🟢"
+    elif score >= 1: signal_txt = "AL 🟢"
+    elif score <= -3: signal_txt = "GÜÇLÜ SAT 🔴"
+    elif score <= -1: signal_txt = "SAT 🔴"
+    else: signal_txt = "NÖTR ⚪"
+
+    # Pivots
+    high = df_history['High']
+    low = df_history['Low']
+    if len(high) > 1:
+        p = (high.iloc[-2] + low.iloc[-2] + close.iloc[-2]) / 3
+        r1 = (2 * p) - low.iloc[-2]
+        s1 = (2 * p) - high.iloc[-2]
+    else:
+        p = current_price; r1=p; s1=p
+
+    # Strategy Backtest (SMA50)
+    try:
+        df_s = pd.DataFrame({'Close': close})
+        df_s['SMA50'] = SMAIndicator(close=close, window=50).sma_indicator()
+        df_s['Sig'] = np.where(df_s['Close'] > df_s['SMA50'], 1, 0)
+        df_s['Ret'] = df_s['Close'].pct_change()
+        df_s['Strat'] = df_s['Sig'].shift(1) * df_s['Ret']
+        algo_ret = ((1 + df_s['Strat']).cumprod().iloc[-1] - 1) * 100
+        bh_ret = ((1 + df_s['Ret']).cumprod().iloc[-1] - 1) * 100
+        algo_comment = f"SMA50 Stratejisi: %{algo_ret:.1f} getiri (B&H: %{bh_ret:.1f})"
+    except: algo_comment = ""
+
+    return {
+        "Fiyat": current_price, "RSI": rsi_val, "SMA50": sma50, "SMA200": sma200,
+        "Sinyal": signal_txt, "Score": score, "Reasons": reasons,
+        "Pivot": p, "Destek 1": s1, "Direnç 1": r1, "algo_comment": algo_comment,
+        "expert_comment": " ".join(reasons)
+    }
+
+def analyze_stock_full(ticker, current_price, history_df, fundamentals):
+    tech = calculate_technicals(history_df)
+    if not tech: return {}
+
+    alerts = []
+    h52 = fundamentals.get("fiftyTwoWeekHigh")
+    l52 = fundamentals.get("fiftyTwoWeekLow")
+
+    if h52:
+        dist = ((h52 - current_price) / h52) * 100
+        if dist < 2.5: alerts.append(f"🚨 ATH Alarmı: Zirveye çok yakın (%{dist:.1f})")
+
+    if l52:
+        dist = ((current_price - l52) / l52) * 100
+        if dist < 2.5: alerts.append(f"⚠️ ATL Alarmı: Dibe çok yakın (%{dist:.1f})")
+
+    return {"metrics": tech, "alerts": alerts}
+
+def ask_gemini(df_summary, api_key):
+    if not api_key: return "⚠️ API Anahtarı girilmedi."
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-pro')
+        prompt = f"Finans uzmanı olarak şu tabloyu yorumla:\n{df_summary.to_string()}\nRiskler, Fırsatlar ve Aksiyon önerisi ver. Türkçe."
+        return model.generate_content(prompt).text
+    except Exception as e: return f"Hata: {e}"
+
+# --- APP LOGIC ---
 if 'portfolio' not in st.session_state:
     st.session_state.portfolio = load_watchlist()
 
-def save_state():
-    save_watchlist(st.session_state.portfolio)
-
-# --- CACHING WRAPPER ---
-@st.cache_data(ttl=300, show_spinner=False)
-def get_cached_market_data(tickers):
-    return fetch_stock_history(tickers)
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_cached_fundamentals(ticker):
-    return fetch_fundamentals_safe(ticker)
-
-def get_all_sectors():
-    sectors = set()
-    for item in st.session_state.portfolio.values():
-        sectors.add(item.get('sector', 'Diğer'))
-    return list(sorted(sectors))
-
-def calculate_portfolio_metrics(transactions, current_price):
-    total_qty = 0
-    total_cost = 0
-    realized_pl = 0
-    
+def calculate_pl(transactions, current_price):
+    total_qty = 0; total_cost = 0; realized_pl = 0
     for t in transactions:
         try:
-            qty = float(t['qty'])
-            price = float(t['price'])
+            q = float(t['qty']); p = float(t['price'])
             if t['type'] == 'ALIS':
-                total_cost += qty * price
-                total_qty += qty
+                total_cost += q * p; total_qty += q
             elif t['type'] == 'SATIS':
                 if total_qty > 0:
-                    avg_cost = total_cost / total_qty
-                    # Realized gain on this chunk
-                    realized_pl += (price - avg_cost) * qty
-                    # Remove cost basis
-                    total_cost -= avg_cost * qty
-                    total_qty -= qty
-                else:
-                    pass
-        except Exception:
-            continue
+                    avg = total_cost / total_qty
+                    realized_pl += (p - avg) * q
+                    total_cost -= avg * q
+                    total_qty -= q
+        except: continue
+    avg_cost = (total_cost / total_qty) if total_qty > 0 else 0
+    return total_qty, avg_cost, realized_pl, (total_qty * current_price) - total_cost
 
-    avg_price = (total_cost / total_qty) if total_qty > 0 else 0
-    market_value = total_qty * current_price
-    unrealized_pl = market_value - total_cost
-
-    return total_qty, avg_price, realized_pl, unrealized_pl
-
-# --- SIDEBAR ---
+# Sidebar
 st.sidebar.title("⚙️ Kontrol Paneli")
-
-# API Key
-if 'api_key' not in st.session_state:
-    st.session_state.api_key = ""
-api_key_input = st.sidebar.text_input("Gemini API Key (AI Analiz için)", type="password", value=st.session_state.api_key)
-if api_key_input:
-    st.session_state.api_key = api_key_input
+api_key = st.sidebar.text_input("Gemini API Key", type="password")
+if api_key: st.session_state.api_key = api_key
+elif 'api_key' not in st.session_state: st.session_state.api_key = ""
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Portföy Yönetimi")
-
-# Add Stock
-with st.sidebar.expander("➕ Hisse Ekle", expanded=False):
-    add_query = st.text_input("Hisse Kodu veya Adı", placeholder="NVDA, Apple...").strip()
-
-    # Sector Selection (Dynamic + Static)
-    existing_sectors = get_all_sectors()
-    default_sectors = ["Teknoloji", "Finans", "Sanayi", "Enerji", "Havacılık", "ETF", "Diğer"]
-    all_sectors_opt = sorted(list(set(existing_sectors + default_sectors)))
-    add_sector = st.selectbox("Sektör", all_sectors_opt)
-
-    if st.button("Listeye Ekle"):
-        if add_query:
-            resolved_ticker = resolve_ticker(add_query)
-            if resolved_ticker in st.session_state.portfolio:
-                st.warning(f"{resolved_ticker} zaten listenizde.")
-            else:
-                st.session_state.portfolio[resolved_ticker] = initialize_stock_entry(resolved_ticker, add_sector)
-                save_state()
-                st.success(f"{resolved_ticker} eklendi!")
+with st.sidebar.expander("➕ Hisse Ekle", expanded=True):
+    add_q = st.text_input("Kod veya İsim").strip()
+    add_s = st.selectbox("Sektör", ["Teknoloji", "Finans", "Enerji", "ETF", "Diğer"])
+    if st.button("Ekle"):
+        if add_q:
+            tick = resolve_ticker(add_q)
+            if tick not in st.session_state.portfolio:
+                st.session_state.portfolio[tick] = initialize_stock_entry(tick, add_s)
+                save_watchlist(st.session_state.portfolio)
+                st.success(f"{tick} eklendi!")
                 st.rerun()
+            else: st.warning("Zaten listede.")
 
-# Remove Stock
-with st.sidebar.expander("🗑️ Hisse Çıkar", expanded=False):
-    tickers_list = sorted(list(st.session_state.portfolio.keys()))
-    rem_ticker = st.selectbox("Silinecek Hisse", ["Seçiniz..."] + tickers_list)
-    if st.button("Sil"):
-        if rem_ticker != "Seçiniz..." and rem_ticker in st.session_state.portfolio:
-            del st.session_state.portfolio[rem_ticker]
-            save_state()
-            st.warning(f"{rem_ticker} silindi.")
-            st.rerun()
+with st.sidebar.expander("🗑️ Hisse Çıkar"):
+    rem_t = st.selectbox("Seç", [""] + sorted(list(st.session_state.portfolio.keys())))
+    if st.button("Sil") and rem_t:
+        del st.session_state.portfolio[rem_t]
+        save_watchlist(st.session_state.portfolio)
+        st.rerun()
 
-st.sidebar.markdown("---")
-st.sidebar.caption("Veriler Yahoo Finance'ten gecikmeli sağlanır. Yatırım tavsiyesi değildir.")
-
-# --- MAIN PAGE ---
+# Main
 st.title("📈 Finansal Hafıza AI")
+tickers = list(st.session_state.portfolio.keys())
+if not tickers: st.stop()
 
-# 1. Sector Filter
-sectors = get_all_sectors()
-selected_sector = st.selectbox("Sektör Filtrele", ["Tümü"] + sectors)
+with st.spinner("Veriler güncelleniyor..."):
+    hist_data = fetch_stock_history_cached(tickers)
 
-filtered_portfolio = {}
-if selected_sector == "Tümü":
-    filtered_portfolio = st.session_state.portfolio
-else:
-    for t, data in st.session_state.portfolio.items():
-        if data.get('sector') == selected_sector:
-            filtered_portfolio[t] = data
+summary = []
+alerts = []
 
-tickers_to_fetch = list(filtered_portfolio.keys())
-
-if not tickers_to_fetch:
-    st.info("Gösterilecek hisse yok. Sol menüden ekleyin.")
-    st.stop()
-
-# 2. Fetch Data (Cached)
-with st.spinner("Piyasa verileri analiz ediliyor (Cache)..."):
-    history_data = get_cached_market_data(tickers_to_fetch)
-
-summary_data = []
-active_alerts = []
-
-# Process Data
-# Use a placeholder for progress to avoid UI clutter on reruns
-for ticker in tickers_to_fetch:
+for t in tickers:
     try:
-        # Extract Data
-        if isinstance(history_data.columns, pd.MultiIndex):
-            try:
-                df = history_data[ticker]
-            except KeyError:
-                continue
+        # Data Extraction
+        if isinstance(hist_data.columns, pd.MultiIndex):
+            try: df = hist_data[t]
+            except: continue
         else:
-            if len(tickers_to_fetch) == 1:
-                df = history_data
-            else:
-                continue
-
-        if df is None or df.empty or 'Close' not in df.columns:
-            continue
+            if len(tickers) == 1: df = hist_data
+            else: continue
 
         df = df.dropna(subset=['Close'])
         if df.empty: continue
 
-        current_price = df['Close'].iloc[-1]
-
-        # Fetch Fundamentals (Cached)
-        fund = get_cached_fundamentals(ticker)
-
-        # Analyze
-        analysis = analyze_stock(ticker, current_price, df, fund)
-        tech = analysis.get("metrics", {})
-
+        curr = df['Close'].iloc[-1]
+        fund = fetch_fundamentals_cached(t)
+        res = analyze_stock_full(t, curr, df, fund)
+        tech = res.get("metrics", {})
         if not tech: continue
 
-        # Collect Alerts
-        if analysis.get('alerts'):
-            for a in analysis['alerts']:
-                active_alerts.append(f"**{ticker}**: {a}")
+        if res.get('alerts'): alerts.extend([f"**{t}**: {a}" for a in res['alerts']])
 
-        # Portfolio Metrics
-        transactions = st.session_state.portfolio[ticker].get('transactions', [])
-        qty, avg_cost, realized_pl, unrealized_pl = calculate_portfolio_metrics(transactions, current_price)
+        q, avg, r_pl, u_pl = calculate_pl(st.session_state.portfolio[t]['transactions'], curr)
 
-        summary_data.append({
-            "Kod": ticker,
-            "Şirket": st.session_state.portfolio[ticker].get('name', ticker),
-            "Fiyat": current_price,
-            "Değişim %": ((current_price - df['Close'].iloc[-2])/df['Close'].iloc[-2])*100,
-            "Sinyal": tech.get('Sinyal', '-'),
-            "RSI": tech.get('RSI', 0),
-            "Pivot": tech.get('Pivot', 0),
-            "Adet": qty,
-            "Ort. Mal.": avg_cost,
-            "Kar/Zarar (Açık)": unrealized_pl,
-            "Kar (Realize)": realized_pl,
-            "Score": tech.get('Score', 0),
-            "full_analysis": analysis,
-            "history": df,
-            "fundamentals": fund
+        summary.append({
+            "Kod": t, "Fiyat": curr, "Sinyal": tech['Sinyal'], "RSI": tech['RSI'],
+            "Adet": q, "Ort.Maliyet": avg, "Kar(Açık)": u_pl, "Kar(Realize)": r_pl,
+            "history": df, "fundamentals": fund, "full_analysis": res, "Score": tech['Score']
         })
+    except: continue
 
-    except Exception as e:
-        pass
+if alerts:
+    st.error("🔔 ALARMLAR: " + " | ".join(alerts))
 
-# 3. Alerts Section
-if active_alerts:
-    st.error("🔔 PİYASA ALARMLARI (ATH/ATL)")
-    for alert in active_alerts:
-        st.markdown(f"- {alert}")
-
-# 4. Main Table
-if summary_data:
-    df_summary = pd.DataFrame(summary_data)
-
-    display_cols = ["Kod", "Şirket", "Fiyat", "Değişim %", "Sinyal", "RSI", "Adet", "Ort. Mal.", "Kar/Zarar (Açık)", "Kar (Realize)"]
+if summary:
+    df_sum = pd.DataFrame(summary)
     
-    def color_signal(val):
-        if 'GÜÇLÜ AL' in str(val): return 'background-color: #2E8B57; color: white'
-        if 'AL' in str(val): return 'background-color: #90EE90; color: black'
-        if 'SAT' in str(val): return 'background-color: #CD5C5C; color: white'
-        return ''
-
-    def color_pl(val):
-        if val > 0: return 'color: green'
-        if val < 0: return 'color: red'
-        return ''
-
-    st.subheader(f"📊 Piyasa Özeti ({selected_sector})")
+    def color_row(row):
+        return ['background-color: #d4edda' if 'AL' in row['Sinyal'] else 'background-color: #f8d7da' if 'SAT' in row['Sinyal'] else '' for _ in row]
 
     st.dataframe(
-        df_summary[display_cols].style
-        .map(color_signal, subset=['Sinyal'])
-        .map(color_pl, subset=['Kar/Zarar (Açık)', 'Kar (Realize)', 'Değişim %'])
-        .format({
-            "Fiyat": "{:.2f}",
-            "Değişim %": "{:+.2f}%",
-            "RSI": "{:.1f}",
-            "Ort. Mal.": "{:.2f}",
-            "Kar/Zarar (Açık)": "{:+.2f}",
-            "Kar (Realize)": "{:+.2f}",
-            "Adet": "{:.0f}"
-        }),
-        use_container_width=True,
-        selection_mode="single-row",
-        on_select="rerun",
-        key="main_table"
+        df_sum[["Kod", "Fiyat", "Sinyal", "RSI", "Adet", "Ort.Maliyet", "Kar(Açık)", "Kar(Realize)"]].style.format({"Fiyat":"{:.2f}", "RSI":"{:.1f}", "Ort.Maliyet":"{:.2f}", "Kar(Açık)":"{:.2f}", "Kar(Realize)":"{:.2f}"}),
+        use_container_width=True, selection_mode="single-row", on_select="rerun", key="main_table"
     )
 
-    # 5. Details View (Robust Selection)
-    selected_rows = st.session_state.main_table.get("selection", {}).get("rows", [])
-    if selected_rows:
-        try:
-            # 1. Get index from selection
-            sel_idx = selected_rows[0]
+    sel = st.session_state.main_table.get("selection", {}).get("rows", [])
+    if sel:
+        sel_row = df_sum.iloc[sel[0]]
+        sel_code = sel_row["Kod"]
+        sel_item = next(x for x in summary if x["Kod"] == sel_code)
 
-            # 2. Map to Ticker using the DATAFRAME that is displayed (df_summary)
-            # This handles cases where summary_data list might not perfectly align with visual if weird sorting happened (unlikely but safe)
-            # Actually, st.dataframe selection index refers to the dataframe passed to it.
-            sel_ticker = df_summary.iloc[sel_idx]["Kod"]
+        st.divider()
+        st.header(f"🔍 {sel_code} Detayları")
+        t1, t2, t3, t4 = st.tabs(["Grafik", "Temel", "İşlemler", "AI"])
 
-            # 3. Find full data object in summary_data list by Ticker
-            sel_data = next((item for item in summary_data if item["Kod"] == sel_ticker), None)
+        with t1:
+            p_opt = st.radio("Periyot", ["Günlük", "Haftalık", "Aylık"], horizontal=True)
+            df_c = sel_item["history"].copy()
+            if p_opt == "Haftalık": df_c = df_c.resample('W').agg({'Open':'first','High':'max','Low':'min','Close':'last'})
+            elif p_opt == "Aylık":
+                try: df_c = df_c.resample('ME').agg({'Open':'first','High':'max','Low':'min','Close':'last'})
+                except: df_c = df_c.resample('M').agg({'Open':'first','High':'max','Low':'min','Close':'last'})
 
-            if sel_data:
-                st.divider()
-                st.header(f"🔍 {sel_ticker} - {sel_data['Şirket']}")
-                
-                tab1, tab2, tab3, tab4 = st.tabs(["📉 Teknik & Grafik", "🏢 Temel Analiz", "💵 İşlemler", "🤖 AI Yorumu"])
-                
-                # --- TAB 1: Technicals ---
-                with tab1:
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        df_hist = sel_data["history"]
+            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3])
+            fig.add_trace(go.Candlestick(x=df_c.index, open=df_c['Open'], high=df_c['High'], low=df_c['Low'], close=df_c['Close'], name="Fiyat"), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df_c.index, y=df_c['Close'].rolling(50).mean(), line=dict(color='orange'), name="SMA50"), row=1, col=1)
 
-                        # Timeframe Selection
-                        p_opt = st.radio("Zaman Aralığı", ["Günlük", "Haftalık", "Aylık", "Saatlik (Son 5 Gün)"], horizontal=True, key="p_opt")
+            delta = df_c['Close'].diff()
+            gain = (delta.where(delta>0, 0)).rolling(14).mean(); loss = (-delta.where(delta<0, 0)).rolling(14).mean()
+            rsi = 100 - (100/(1+(gain/loss)))
+            fig.add_trace(go.Scatter(x=df_c.index, y=rsi, line=dict(color='purple'), name="RSI"), row=2, col=1)
+            fig.add_hline(y=70, row=2, col=1, line_dash="dash", line_color="red")
+            fig.add_hline(y=30, row=2, col=1, line_dash="dash", line_color="green")
+            st.plotly_chart(fig, use_container_width=True)
 
-                        chart_data = df_hist.copy()
+            m = sel_item["full_analysis"]["metrics"]
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Pivot", f"{m['Pivot']:.2f}")
+            c2.metric("Destek 1", f"{m['Destek 1']:.2f}")
+            c3.metric("Direnç 1", f"{m['Direnç 1']:.2f}")
+            st.info(f"💡 {m['expert_comment']}")
+            if m.get('algo_comment'): st.success(m['algo_comment'])
 
-                        # Fetch Intraday if selected
-                        if p_opt == "Saatlik (Son 5 Gün)":
-                            try:
-                                import yfinance as yf
-                                with st.spinner("Saatlik veri çekiliyor..."):
-                                    intra = yf.download(sel_ticker, period="5d", interval="60m", auto_adjust=True, progress=False)
-                                    if not intra.empty:
-                                        chart_data = intra
-                                    else:
-                                        st.warning("Saatlik veri alınamadı, günlük gösteriliyor.")
-                            except:
-                                st.warning("Saatlik veri hatası.")
+        with t2:
+            f = sel_item["fundamentals"]
+            if f:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Piyasa Değ.", f"${f.get('marketCap',0)/1e9:.1f}B")
+                c1.metric("F/K", f"{f.get('trailingPE',0):.2f}")
+                c2.metric("Beta", f"{f.get('beta',0):.2f}")
+                c2.metric("Temettü", f"%{f.get('dividendYield',0)*100:.2f}" if f.get('dividendYield') else "-")
+                c3.metric("Öneri", f.get('recommendationKey','-').upper())
+                c3.metric("Kâr Marjı", f"%{f.get('profitMargins',0)*100:.1f}" if f.get('profitMargins') else "-")
+            else: st.warning("Veri yok.")
 
-                        elif p_opt == "Haftalık":
-                            chart_data = chart_data.resample('W').agg({'Open':'first', 'High':'max', 'Low':'min', 'Close':'last'})
-                        elif p_opt == "Aylık":
-                            try:
-                                chart_data = chart_data.resample('ME').agg({'Open':'first', 'High':'max', 'Low':'min', 'Close':'last'})
-                            except:
-                                chart_data = chart_data.resample('M').agg({'Open':'first', 'High':'max', 'Low':'min', 'Close':'last'})
+        with t3:
+            with st.form("add_tr"):
+                c1, c2, c3, c4 = st.columns(4)
+                tt = c1.selectbox("Tip", ["ALIS", "SATIS"])
+                tq = c2.number_input("Adet", 1.0)
+                tp = c3.number_input("Fiyat", value=float(sel_item["Fiyat"]))
+                td = c4.date_input("Tarih", datetime.now())
+                if st.form_submit_button("İşlemi Kaydet"):
+                    st.session_state.portfolio[sel_code]['transactions'].append({"date":str(td), "type":tt, "qty":tq, "price":tp})
+                    save_watchlist(st.session_state.portfolio)
+                    st.success("Kaydedildi!")
+                    st.rerun()
 
-                        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3], vertical_spacing=0.1)
+            trs = st.session_state.portfolio[sel_code].get('transactions', [])
+            if trs: st.dataframe(pd.DataFrame(trs))
 
-                        fig.add_trace(go.Candlestick(x=chart_data.index, open=chart_data['Open'], high=chart_data['High'],
-                                        low=chart_data['Low'], close=chart_data['Close'], name="Fiyat"), row=1, col=1)
-
-                        # Indicators (Only calculate for Chart Data timeframe if reasonable)
-                        sma50 = chart_data['Close'].rolling(50).mean()
-                        sma200 = chart_data['Close'].rolling(200).mean()
-                        fig.add_trace(go.Scatter(x=chart_data.index, y=sma50, line=dict(color='orange'), name="SMA 50"), row=1, col=1)
-                        fig.add_trace(go.Scatter(x=chart_data.index, y=sma200, line=dict(color='blue'), name="SMA 200"), row=1, col=1)
-
-                        delta = chart_data['Close'].diff()
-                        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
-                        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-                        rs = gain / loss
-                        rsi_s = 100 - (100 / (1 + rs))
-
-                        fig.add_trace(go.Scatter(x=chart_data.index, y=rsi_s, line=dict(color='purple'), name="RSI"), row=2, col=1)
-                        fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
-                        fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
-
-                        fig.update_layout(height=500, xaxis_rangeslider_visible=False, title=f"{sel_ticker} {p_opt}")
-                        st.plotly_chart(fig, use_container_width=True)
-
-                    with col2:
-                        m = sel_data["full_analysis"]["metrics"]
-                        st.subheader("Seviyeler")
-                        st.metric("Sinyal", m["Sinyal"], delta=m["Score"])
-                        st.metric("Pivot", f"{m['Pivot']:.2f}")
-                        st.metric("Direnç 1", f"{m['Direnç 1']:.2f}")
-                        st.metric("Destek 1", f"{m['Destek 1']:.2f}")
-
-                        st.markdown("---")
-                        st.markdown("**Analiz Detayları:**")
-                        st.info(sel_data["full_analysis"]["expert_comment"])
-
-                        if sel_data["full_analysis"].get("algo_comment"):
-                            st.success(f"🤖 **Algoritma Performansı:** {sel_data['full_analysis']['algo_comment']}")
-
-                # --- TAB 2: Fundamentals ---
-                with tab2:
-                    f = sel_data["fundamentals"]
-                    if f:
-                        c1, c2, c3 = st.columns(3)
-                        with c1:
-                            st.metric("Piyasa Değeri", f"${f.get('marketCap', 0)/1e9:.2f}B" if f.get('marketCap') else "-")
-                            st.metric("F/K (Trailing)", f"{f.get('trailingPE', 0):.2f}" if f.get('trailingPE') else "-")
-                            st.metric("Beta (Risk)", f"{f.get('beta', 0):.2f}" if f.get('beta') else "-")
-                        with c2:
-                            st.metric("52H Yüksek", f"{f.get('fiftyTwoWeekHigh', 0):.2f}")
-                            st.metric("52H Düşük", f"{f.get('fiftyTwoWeekLow', 0):.2f}")
-                            st.metric("Temettü Verimi", f"%{f.get('dividendYield', 0)*100:.2f}" if f.get('dividendYield') else "-")
-                        with c3:
-                            rec = f.get('recommendationKey', '-').upper().replace('_', ' ')
-                            st.metric("Analist Önerisi", rec)
-                            st.metric("Sektör", f.get('sector', '-'))
-                            st.metric("Kâr Marjı", f"%{f.get('profitMargins', 0)*100:.1f}" if f.get('profitMargins') else "-")
-
-                        st.markdown("---")
-                        st.markdown(f"**Şirket Hakkında:** {f.get('longName', sel_ticker)}")
-                    else:
-                        st.warning("Temel veriler alınamadı.")
-
-                # --- TAB 3: Transactions ---
-                with tab3:
-                    c1, c2 = st.columns([1, 2])
-                    with c1:
-                        st.subheader("Yeni İşlem")
-                        with st.form("tr_form"):
-                            tr_type = st.selectbox("Tip", ["ALIS", "SATIS"])
-                            tr_qty = st.number_input("Adet", min_value=0.01, step=1.0)
-                            tr_price = st.number_input("Fiyat", min_value=0.01, value=float(sel_data["Fiyat"]))
-                            tr_date = st.date_input("Tarih", datetime.now())
-
-                            if st.form_submit_button("Kaydet"):
-                                st.session_state.portfolio[sel_ticker]['transactions'].append({
-                                    "date": str(tr_date),
-                                    "type": tr_type,
-                                    "qty": tr_qty,
-                                    "price": tr_price
-                                })
-                                save_state()
-                                st.success("İşlem eklendi!")
-                                st.rerun()
-                    
-                    with c2:
-                        st.subheader("İşlem Geçmişi")
-                        trs = st.session_state.portfolio[sel_ticker].get('transactions', [])
-                        if trs:
-                            df_trs = pd.DataFrame(trs)
-                            st.dataframe(df_trs)
-
-                            if not df_trs.empty:
-                                total_realized = sel_data["Kar (Realize)"]
-                                st.metric("Toplam Realize Kâr/Zarar", f"${total_realized:.2f}", delta=total_realized)
-                        else:
-                            st.info("Henüz işlem yok.")
-
-                # --- TAB 4: AI ---
-                with tab4:
-                    st.markdown("### 🧠 AI Görüşü")
-                    st.caption("Google Gemini modeli kullanılarak analiz üretilir.")
-                    if st.button("Analiz Et (Gemini)"):
-                        with st.spinner("Yapay zeka analiz ediyor..."):
-                            ai_input = pd.DataFrame([sel_data])
-                            response = ask_gemini_analysis(ai_input, st.session_state.api_key)
-                            st.markdown(response)
-        except Exception as e:
-            st.error(f"Detaylar yüklenirken hata: {e}")
-
-else:
-    st.write("Veri yok.")
+        with t4:
+            if st.button("Yapay Zeka Yorumla"):
+                with st.spinner("Analiz ediliyor..."):
+                    res = ask_gemini(pd.DataFrame([sel_item]), st.session_state.api_key)
+                    st.markdown(res)
