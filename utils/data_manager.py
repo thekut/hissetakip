@@ -55,7 +55,7 @@ def fetch_stock_history(tickers):
 
     try:
         # group_by='ticker' ensures we usually get (Ticker, Price) structure
-        data = yf.download(tickers, period="1y", group_by='ticker', auto_adjust=True, threads=True)
+        data = yf.download(tickers, period="1y", group_by='ticker', auto_adjust=True, threads=False)
         return data
     except Exception as e:
         print(f"Error fetching history: {e}")
@@ -95,7 +95,7 @@ def get_current_price_batch(tickers):
         return {}
         
     try:
-        data = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True, threads=True)
+        data = yf.download(tickers, period="5d", group_by='ticker', auto_adjust=True, threads=False)
     except Exception:
         return {}
 
