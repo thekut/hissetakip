@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import google.generativeai as genai
+from google import genai
 from ta.momentum import RSIIndicator
 from ta.trend import SMAIndicator, MACD
 from ta.volatility import BollingerBands
@@ -210,7 +210,7 @@ def ask_gemini_analysis(df_summary, api_key):
         return "⚠️ AI Analizi için API Anahtarı gerekli (Sol Menü)."
 
     try:
-        genai.configure(api_key=api_key)
+        client = genai.Client(api_key=api_key)
 
         prompt = f"""
         Bir borsa uzmanı olarak şu portföy tablosunu yorumla:
@@ -225,8 +225,10 @@ def ask_gemini_analysis(df_summary, api_key):
         Yanıtı Türkçe, profesyonel ve Markdown formatında ver.
         """
 
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt
+        )
         return response.text
     except Exception as e:
         return f"❌ Gemini API Hatası: {str(e)}"
