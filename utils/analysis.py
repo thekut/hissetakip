@@ -14,17 +14,19 @@ def calculate_technicals(df_history):
     close = df_history['Close']
 
     # RSI
-    rsi_indicator = RSIIndicator(close=close, window=14)
-    current_rsi = rsi_indicator.rsi().iloc[-1]
+    rsi_series = RSIIndicator(close=close, window=14).rsi()
 
     # SMA 50 and 200
-    sma50 = SMAIndicator(close=close, window=50).sma_indicator().iloc[-1]
-    sma200 = SMAIndicator(close=close, window=200).sma_indicator().iloc[-1]
+    sma50_series = SMAIndicator(close=close, window=50).sma_indicator()
+    sma200_series = SMAIndicator(close=close, window=200).sma_indicator()
 
     return {
-        "RSI": current_rsi,
-        "SMA50": sma50,
-        "SMA200": sma200
+        "RSI_series": rsi_series,
+        "SMA50_series": sma50_series,
+        "SMA200_series": sma200_series,
+        "RSI": rsi_series.iloc[-1] if not rsi_series.empty else None,
+        "SMA50": sma50_series.iloc[-1] if not sma50_series.empty else None,
+        "SMA200": sma200_series.iloc[-1] if not sma200_series.empty else None,
     }
 
 def analyze_stock(ticker, current_price, history_df, fundamentals):

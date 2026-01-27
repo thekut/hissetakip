@@ -229,25 +229,18 @@ if selected_ticker:
             ), row=1, col=1)
 
             # SMA
-            sma50 = analysis['metrics'].get('SMA50')
-            # (Note: SMA in analysis.py is just the last value. To plot, we need series.
-            # I'll re-calculate series here for plotting or update analysis to return series.
-            # For speed, I'll just use the built-in ta logic or rolling mean here)
-            sma_50_series = ticker_hist['Close'].rolling(window=50).mean()
-            sma_200_series = ticker_hist['Close'].rolling(window=200).mean()
+            sma_50_series = analysis['metrics'].get('SMA50_series')
+            sma_200_series = analysis['metrics'].get('SMA200_series')
 
-            fig.add_trace(go.Scatter(x=ticker_hist.index, y=sma_50_series, name="SMA 50", line=dict(color='orange')), row=1, col=1)
-            fig.add_trace(go.Scatter(x=ticker_hist.index, y=sma_200_series, name="SMA 200", line=dict(color='blue')), row=1, col=1)
+            if sma_50_series is not None:
+                fig.add_trace(go.Scatter(x=ticker_hist.index, y=sma_50_series, name="SMA 50", line=dict(color='orange')), row=1, col=1)
+            if sma_200_series is not None:
+                fig.add_trace(go.Scatter(x=ticker_hist.index, y=sma_200_series, name="SMA 200", line=dict(color='blue')), row=1, col=1)
 
             # RSI
-            # Calculate RSI Series
-            delta = ticker_hist['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            rsi_series = 100 - (100 / (1 + rs))
-
-            fig.add_trace(go.Scatter(x=ticker_hist.index, y=rsi_series, name="RSI", line=dict(color='purple')), row=2, col=1)
+            rsi_series = analysis['metrics'].get('RSI_series')
+            if rsi_series is not None:
+                fig.add_trace(go.Scatter(x=ticker_hist.index, y=rsi_series, name="RSI", line=dict(color='purple')), row=2, col=1)
             fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
             fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
 

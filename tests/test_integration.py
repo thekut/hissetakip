@@ -48,6 +48,12 @@ class TestStockAppIntegration(unittest.TestCase):
         self.assertIn("metrics", result)
         self.assertIn("expert_comment", result)
         self.assertIn("RSI", result["metrics"])
+        self.assertIn("RSI_series", result["metrics"])
+        self.assertIsInstance(result["metrics"]["RSI_series"], pd.Series)
+        self.assertIn("SMA50_series", result["metrics"])
+        self.assertIsInstance(result["metrics"]["SMA50_series"], pd.Series)
+        self.assertIn("SMA200_series", result["metrics"])
+        self.assertIsInstance(result["metrics"]["SMA200_series"], pd.Series)
 
 if __name__ == '__main__':
     unittest.main()
