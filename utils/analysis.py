@@ -33,7 +33,8 @@ def calculate_technicals(df_history):
     rsi_val = RSIIndicator(close=close, window=14).rsi().iloc[-1]
 
     # SMA (50, 200)
-    sma50 = SMAIndicator(close=close, window=50).sma_indicator().iloc[-1]
+    sma50_series = SMAIndicator(close=close, window=50).sma_indicator()
+    sma50 = sma50_series.iloc[-1]
     sma200 = SMAIndicator(close=close, window=200).sma_indicator().iloc[-1]
 
     # Bollinger Bands (20, 2)
@@ -127,7 +128,7 @@ def calculate_technicals(df_history):
     try:
         df_strat = pd.DataFrame(index=close.index)
         df_strat['Price'] = close
-        df_strat['SMA50'] = SMAIndicator(close=close, window=50).sma_indicator()
+        df_strat['SMA50'] = sma50_series
         df_strat['Signal'] = np.where(df_strat['Price'] > df_strat['SMA50'], 1, 0)
         df_strat['Returns'] = df_strat['Price'].pct_change()
         df_strat['Strat_Returns'] = df_strat['Signal'].shift(1) * df_strat['Returns']
