@@ -186,9 +186,14 @@ for ticker in tickers_to_fetch:
         transactions = st.session_state.portfolio[ticker].get('transactions', [])
         qty, avg_cost, realized_pl, unrealized_pl = calculate_portfolio_metrics(transactions, current_price)
         
+        # Display Name Logic: Prefer cached fundamentals longName if available
+        display_name = fund.get('longName')
+        if not display_name:
+            display_name = st.session_state.portfolio[ticker].get('name', ticker)
+
         summary_data.append({
             "Kod": ticker,
-            "Şirket": st.session_state.portfolio[ticker].get('name', ticker),
+            "Şirket": display_name,
             "Fiyat": current_price,
             "Değişim %": ((current_price - df['Close'].iloc[-2])/df['Close'].iloc[-2])*100,
             "Sinyal": tech.get('Sinyal', '-'),

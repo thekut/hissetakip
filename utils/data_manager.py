@@ -186,10 +186,7 @@ def initialize_stock_entry(ticker, sector="Diğer", name=None):
         if ticker in KNOWN_STOCKS:
             name = KNOWN_STOCKS[ticker]
         else:
-            try:
-                name = yf.Ticker(ticker).info.get('longName', ticker)
-            except:
-                name = ticker
+            name = ticker
             
     return {
         "name": name,
