@@ -2,6 +2,7 @@ import json
 import yfinance as yf
 import pandas as pd
 import os
+import concurrent.futures
 
 DATA_FILE = "data/stocks.json"
 
@@ -85,6 +86,29 @@ def fetch_fundamentals_safe(ticker):
     except Exception as e:
         print(f"Error fetching fundamentals for {ticker}: {e}")
         return {}
+
+def fetch_fundamentals_batch(tickers):
+    """
+    Fetches fundamentals for a list of tickers in parallel.
+    Returns a dict {ticker: fundamentals}.
+    """
+    results = {}
+    # Limit workers to avoid hitting API rate limits too hard or spawning too many threads
+    max_workers = min(len(tickers), 20)
+    if max_workers < 1:
+        max_workers = 1
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_ticker = {executor.submit(fetch_fundamentals_safe, t): t for t in tickers}
+        for future in concurrent.futures.as_completed(future_to_ticker):
+            ticker = future_to_ticker[future]
+            try:
+                data = future.result()
+                results[ticker] = data
+            except Exception as e:
+                print(f"Error in batch fetch for {ticker}: {e}")
+                results[ticker] = {}
+    return results
 
 def get_current_price_batch(tickers):
     """
