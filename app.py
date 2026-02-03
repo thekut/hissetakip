@@ -8,7 +8,7 @@ import time
 # Custom Modules
 from utils.data_manager import (
     load_watchlist, save_watchlist, fetch_stock_history, 
-    fetch_fundamentals_safe, search_symbol_local, initialize_stock_entry, resolve_ticker
+    fetch_fundamentals_safe, fetch_fundamentals_batch, search_symbol_local, initialize_stock_entry, resolve_ticker
 )
 from utils.analysis import analyze_stock, ask_gemini_analysis
 
@@ -30,6 +30,10 @@ def get_cached_market_data(tickers):
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_fundamentals(ticker):
     return fetch_fundamentals_safe(ticker)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_fundamentals_batch(tickers):
+    return fetch_fundamentals_batch(tickers)
 
 def get_all_sectors():
     sectors = set()
@@ -140,6 +144,7 @@ if not tickers_to_fetch:
 # 2. Fetch Data (Cached)
 with st.spinner("Piyasa verileri analiz ediliyor (Cache)..."):
     history_data = get_cached_market_data(tickers_to_fetch)
+    fundamentals_map = get_cached_fundamentals_batch(tickers_to_fetch)
 
 summary_data = []
 active_alerts = []
@@ -169,7 +174,7 @@ for ticker in tickers_to_fetch:
         current_price = df['Close'].iloc[-1]
         
         # Fetch Fundamentals (Cached)
-        fund = get_cached_fundamentals(ticker)
+        fund = fundamentals_map.get(ticker, {})
         
         # Analyze
         analysis = analyze_stock(ticker, current_price, df, fund)
