@@ -142,6 +142,7 @@ with st.spinner("Piyasa verileri analiz ediliyor (Cache)..."):
     history_data = get_cached_market_data(tickers_to_fetch)
 
 summary_data = []
+summary_map = {}
 active_alerts = []
 
 # Process Data
@@ -186,7 +187,7 @@ for ticker in tickers_to_fetch:
         transactions = st.session_state.portfolio[ticker].get('transactions', [])
         qty, avg_cost, realized_pl, unrealized_pl = calculate_portfolio_metrics(transactions, current_price)
         
-        summary_data.append({
+        stock_summary = {
             "Kod": ticker,
             "Şirket": st.session_state.portfolio[ticker].get('name', ticker),
             "Fiyat": current_price,
@@ -202,7 +203,10 @@ for ticker in tickers_to_fetch:
             "full_analysis": analysis,
             "history": df,
             "fundamentals": fund
-        })
+        }
+
+        summary_data.append(stock_summary)
+        summary_map[ticker] = stock_summary
         
     except Exception as e:
         pass
@@ -263,8 +267,8 @@ if summary_data:
             # Actually, st.dataframe selection index refers to the dataframe passed to it.
             sel_ticker = df_summary.iloc[sel_idx]["Kod"]
             
-            # 3. Find full data object in summary_data list by Ticker
-            sel_data = next((item for item in summary_data if item["Kod"] == sel_ticker), None)
+            # 3. Find full data object in summary_map by Ticker
+            sel_data = summary_map.get(sel_ticker)
             
             if sel_data:
                 st.divider()
