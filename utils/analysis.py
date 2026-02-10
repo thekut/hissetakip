@@ -202,7 +202,7 @@ def analyze_stock(ticker, current_price, history_df, fundamentals):
         "algo_comment": algo_comment
     }
 
-def ask_gemini_analysis(df_summary, api_key):
+async def ask_gemini_analysis_async(df_summary, api_key):
     """
     Uses Google Gemini to analyze the portfolio summary dataframe.
     """
@@ -226,7 +226,7 @@ def ask_gemini_analysis(df_summary, api_key):
         """
 
         model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
+        response = await model.generate_content_async(prompt)
         return response.text
     except Exception as e:
         return f"❌ Gemini API Hatası: {str(e)}"
