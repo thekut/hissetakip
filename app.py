@@ -4,13 +4,14 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import time
+import asyncio
 
 # Custom Modules
 from utils.data_manager import (
     load_watchlist, save_watchlist, fetch_stock_history, 
     fetch_fundamentals_safe, search_symbol_local, initialize_stock_entry, resolve_ticker
 )
-from utils.analysis import analyze_stock, ask_gemini_analysis
+from utils.analysis import analyze_stock, ask_gemini_analysis_async
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Finansal Hafıza Pro", layout="wide", page_icon="🏦")
@@ -409,7 +410,7 @@ if summary_data:
                     if st.button("Analiz Et (Gemini)"):
                         with st.spinner("Yapay zeka analiz ediyor..."):
                             ai_input = pd.DataFrame([sel_data])
-                            response = ask_gemini_analysis(ai_input, st.session_state.api_key)
+                            response = asyncio.run(ask_gemini_analysis_async(ai_input, st.session_state.api_key))
                             st.markdown(response)
         except Exception as e:
             st.error(f"Detaylar yüklenirken hata: {e}")
