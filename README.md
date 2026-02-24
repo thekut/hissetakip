@@ -1,3 +1,8 @@
+# ⚠️ PROJECT FROZEN / PROJE DONDURULDU ⚠️
+Bu proje şu anda dondurulmuş durumdadır ve artık aktif olarak geliştirilmemektedir. Lütfen aşağıdaki eski README içeriğine dikkat edin. / This project is currently frozen and no longer actively developed. Please refer to the archived README content below.
+
+---
+
 # 📈 Hisse Takip & AI Portföy Analisti
 
 Bu proje, Amerikan borsalarındaki (veya ekleyeceğiniz diğer) hisseleri takip etmenizi, teknik analiz yapmanızı ve **Google Gemini Yapay Zekası** ile portföy yorumu almanızı sağlayan bir Streamlit uygulamasıdır.
