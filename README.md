@@ -13,15 +13,37 @@ Bu proje, Amerikan borsalarındaki (veya ekleyeceğiniz diğer) hisseleri takip 
 
 ## 🛠️ Kurulum (Kendi Bilgisayarınızda)
 
-1.  Proje dosyalarını indirin.
-2.  Gerekli kütüphaneleri yükleyin:
+1.  **Proje dosyalarını indirin:**
+    Kodu bilgisayarınıza indirin ve proje klasörüne gidin.
+
+2.  **Sanal Ortam Oluşturun (Önerilen):**
+    Python projelerini izole etmek için sanal ortam kullanmanız önerilir.
+    ```bash
+    # Windows
+    python -m venv venv
+    .\venv\Scripts\activate
+
+    # Mac/Linux
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+3.  **Gerekli kütüphaneleri yükleyin:**
     ```bash
     pip install -r requirements.txt
     ```
-3.  Uygulamayı çalıştırın:
+
+4.  **Uygulamayı çalıştırın:**
     ```bash
     streamlit run app.py
     ```
+
+## 🧪 Testleri Çalıştırma
+
+Kodun düzgün çalıştığını doğrulamak için testleri çalıştırabilirsiniz:
+```bash
+python -m unittest tests/test_integration.py
+```
 
 ## 🌐 İnternette Yayınlama (Streamlit Cloud)
 
