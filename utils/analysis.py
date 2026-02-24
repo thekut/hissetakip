@@ -205,9 +205,11 @@ def analyze_stock(ticker, current_price, history_df, fundamentals):
 def ask_gemini_analysis(df_summary, api_key):
     """
     Uses Google Gemini to analyze the portfolio summary dataframe.
+    Returns a generator that yields text chunks.
     """
     if not api_key:
-        return "⚠️ AI Analizi için API Anahtarı gerekli (Sol Menü)."
+        yield "⚠️ AI Analizi için API Anahtarı gerekli (Sol Menü)."
+        return
 
     try:
         genai.configure(api_key=api_key)
@@ -226,7 +228,10 @@ def ask_gemini_analysis(df_summary, api_key):
         """
 
         model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        return response.text
+        # Use stream=True to avoid blocking the main thread and provide faster perceived performance
+        response = model.generate_content(prompt, stream=True)
+        for chunk in response:
+            if chunk.text:
+                yield chunk.text
     except Exception as e:
-        return f"❌ Gemini API Hatası: {str(e)}"
+        yield f"❌ Gemini API Hatası: {str(e)}"

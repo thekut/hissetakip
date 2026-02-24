@@ -407,10 +407,13 @@ if summary_data:
                     st.markdown("### 🧠 AI Görüşü")
                     st.caption("Google Gemini modeli kullanılarak analiz üretilir.")
                     if st.button("Analiz Et (Gemini)"):
-                        with st.spinner("Yapay zeka analiz ediyor..."):
-                            ai_input = pd.DataFrame([sel_data])
-                            response = ask_gemini_analysis(ai_input, st.session_state.api_key)
-                            st.markdown(response)
+                        ai_input = pd.DataFrame([sel_data])
+                        # Use a spinner for the initial "thinking" phase
+                        with st.spinner("AI analiz hazırlıyor..."):
+                            # The generator is initialized and st.write_stream will consume it
+                            # resulting in a typing effect while chunks arrive.
+                            response_gen = ask_gemini_analysis(ai_input, st.session_state.api_key)
+                            st.write_stream(response_gen)
         except Exception as e:
             st.error(f"Detaylar yüklenirken hata: {e}")
 
