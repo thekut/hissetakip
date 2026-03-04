@@ -1,3 +1,4 @@
+import streamlit as st
 import pandas as pd
 import numpy as np
 import google.generativeai as genai
@@ -5,6 +6,7 @@ from ta.momentum import RSIIndicator
 from ta.trend import SMAIndicator, MACD
 from ta.volatility import BollingerBands
 
+@st.cache_data(ttl=14400, show_spinner=False)
 def calculate_technicals(df_history):
     """
     Calculates technical indicators and generates signals for a stock's history.
