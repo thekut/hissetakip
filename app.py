@@ -23,11 +23,11 @@ def save_state():
     save_watchlist(st.session_state.portfolio)
 
 # --- CACHING WRAPPER (Performans ve Tıklama Sorunu İçin Kritik) ---
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=14400, show_spinner=False)
 def get_cached_market_data(tickers):
     return fetch_stock_history(tickers)
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=14400, show_spinner=False)
 def get_cached_fundamentals(ticker):
     return fetch_fundamentals_safe(ticker)
 
